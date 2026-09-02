@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 无头回归测试（81 项断言：分词/候选/投票/导出/校验/定稿/TMX/编码）
+        run: node tests/pipeline_test.js
+
+      - name: 金标准基准（EN↔ZH 双向：召回 ≥85%，译文 top-3 ≥70%，端到端导出）
+        run: node benchmark/run_benchmark.js
