@@ -1,0 +1,21 @@
+{
+  "description": "金标准术语对（自创平行文本，EN↔ZH 各侧频次均 ≥2）。用于基准测试：源语候选召回率 + 统计译文 top-3 命中率。",
+  "en2zh": [
+    { "en": "edge computing", "zh": "边缘计算" },
+    { "en": "distributed system", "zh": "分布式系统" },
+    { "en": "cloud server", "zh": "云服务器" },
+    { "en": "machine learning", "zh": "机器学习" },
+    { "en": "latency", "zh": "延迟" },
+    { "en": "bandwidth", "zh": "带宽" },
+    { "en": "Internet of Things", "zh": "物联网" },
+    { "en": "sensor", "zh": "传感器" },
+    { "en": "gateway", "zh": "网关" },
+    { "en": "real-time", "zh": "实时" },
+    { "en": "inference", "zh": "推理" },
+    { "en": "model training", "zh": "模型训练" },
+    { "en": "edge node", "zh": "边缘节点" },
+    { "en": "firmware", "zh": "固件" },
+    { "en": "encryption", "zh": "加密" },
+    { "en": "data pipeline", "zh": "数据管道" }
+  ]
+}

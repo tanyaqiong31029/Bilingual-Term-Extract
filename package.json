@@ -1,0 +1,24 @@
+{
+  "name": "bilingual-term-extract",
+  "version": "1.0.0",
+  "description": "从双语平行文本自动提取源语-目标语对照术语表（统计召回 + LLM 精筛），可导出 TBX/CSV/JSON/Markdown，兼容 Trados MultiTerm 与 memoQ。Agent skill + 零依赖 CLI。",
+  "main": "scripts/term_extract.js",
+  "scripts": {
+    "test": "node tests/pipeline_test.js",
+    "benchmark": "node benchmark/run_benchmark.js"
+  },
+  "keywords": [
+    "terminology-extraction",
+    "bilingual",
+    "glossary",
+    "tbx",
+    "translation",
+    "cat",
+    "corpus"
+  ],
+  "author": "tanyaqiong31029",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}
