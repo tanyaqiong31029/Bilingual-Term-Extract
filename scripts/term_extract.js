@@ -3,9 +3,9 @@
 /* Bilingual-Term-Extract —— 统计阶段 CLI（候选术语提取 + 词对齐译文投票）
  *
  * 用法：
- *   node term_extract.js candidates --src en.docx --tgt zh.txt \
+ *   node term_extract.js candidates --src en.docx --tgt zh.srt \
  *        [--src-lang en] [--tgt-lang zh-CN] [--min-freq 2] [--top 300] \
- *        [--out output] [--name project]
+ *        [--out output] [--name project]        # 支持 .txt/.md/.docx/.srt/.vtt
  *   node term_extract.js candidates --tmx memory.tmx --src-lang en --tgt-lang zh-CN [...]
  *   node term_extract.js candidates --pairs pairs.json [...]   # 预对齐句对 [{"src":"...","tgt":"..."}]
  *
@@ -102,7 +102,8 @@ function cmdCandidates(o) {
     const r = alignDocs(a.text, b.text, srcLang, tgtLang);
     pairs = r.pairs;
     console.log('分句: 源 ' + r.nA + ' 句 / 目标 ' + r.nB + ' 句；对齐 1-1 句对 ' + pairs.length + '（其余 ' + r.dropped + ' 个珠位已丢弃）');
-    if (pairs.length < 5) throw new Error('有效句对过少（' + pairs.length + '），统计提取不可靠——请检查文档是否真的互为译文');
+    if (pairs.length < 3) throw new Error('有效句对过少（' + pairs.length + '），无法统计提取——请检查文档是否真的互为译文');
+    if (pairs.length < 5) console.warn('WARN: 有效句对仅 ' + pairs.length + ' 个，统计召回与译文质量有限——LLM 精筛请格外依赖上下文例句');
   }
 
   const minFreq = +(o['min-freq'] || 2), topN = +(o.top || 300);

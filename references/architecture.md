@@ -13,8 +13,9 @@ scripts/
     ├── util.js          charClass / weightedLen / normLang / escapeXml
     ├── segmenter.js     多语分句（缩写库、小数、brk 上标、列表标号）+ 语言检测
     ├── aligner.js       Gale-Church DP（1-1/1-2/2-1/2-2/1-0/0-1 + 段落锚定 + 滑窗）
-    ├── docximport.js    迷你 ZIP 读取器（node:zlib）+ DOCX 正文 + TXT 编码识别
-    ├── tmx.js           TMX 1.4 正则解析（tu/tuv/seg，行内标签剥离，语言前缀匹配）
+├── docximport.js    迷你 ZIP 读取器（node:zlib）+ DOCX 正文 + TXT 编码识别 + 文件路由
+├── tmx.js           TMX 1.4 正则解析（tu/tuv/seg，行内标签剥离，语言前缀匹配）
+├── srt.js           SRT/VTT 导入（宽容解析 + 标签清洗，每 cue 一个自然段）
     ├── tokenizer.js     分词：拉丁=词元（连字符/撇号内聚），CJK=逐字；norm=小写+单数折叠
     ├── stopwords.js     内置停用词（EN 词表；ZH 单字表刻意精简 + 多字虚词表）
     ├── candidates.js    候选提取（本文件 §2）
@@ -43,6 +44,10 @@ scripts/
 
 - **内凝度**：min PMI over 相邻字对，`PMI = ln( p(xy) / (p(x)·p(y)) )`，p 由全语料 uni/bigram 计数（+0.1 平滑）。硬门槛 `minPMI ≥ 1.2`。
 - **邻接熵**：左右邻字分布熵（句边界记 `#`）。**默认仅作软评分**（entF = clamp(minEntropy/2.5, 0.4, 1.3)）——文档级小语料中频次 2 的真术语常被固定邻字压成 0 熵（"的带宽"），硬过滤会误杀。
+
+### SRT/VTT 导入（srt.js）
+
+`.srt/.vtt` 由 docximport 的文件路由交给 srt.js：宽容解析（VTT 头、无小时时间戳、毫秒点/逗号、序号行可有可无），`<i>/<font>` 与 `{\an8}` 位置标签清洗，NOTE 块跳过；**每条 cue 输出为一个自然段**（空行分隔）。字幕 cue 是同序小段，双语 cue 数接近时段落锚定几乎零误差。
 
 ### 软化 C-value 嵌套折扣
 对候选 c，收集所有包含 c 为**连续子串**的更长候选 d（各自 freq ≥ minFreq）：
@@ -74,8 +79,9 @@ effFreq(c) = f(c) − 0.6 × (Σ f(d)) / p(c)      p(c) = |{d}|，下限 0.5
 - **两轮共识**：第一轮后，若短语 A 严格包含短语 B（"行机器学习"⊃"机器学习"），共识核取 B（真术语核会在其他出现句独立胜出，粘连带归顺）；无包含关系且最高票 < 2 不改投。共现动词粘连（run machine learning / 行机器学习）由此消除。
 - `translations` = 票数 top3；`statConf` = 最高票 / 出现总次数。
 - **dfT=1（单句术语）跳过投票**：共现门槛坍缩、无跨句证据，translations=[] 交给 LLM。
+- 调试：`BTE_DEBUG=<候选norm 或 *>` 向 stderr 打印每处出现的 runs 与所选 span。
 
-参数（DEFAULTS）：`slack=3, coGate=0.75, diceMin=0.3, softDice=0.3（保留供桥接重启）, widthPenalty=0.3`。
+参数（DEFAULTS）：`slack=3, coGate=0.75, diceMin=0.3, widthPenalty=0.3`。
 
 > 为什么不用 IBM Model 1 EM：文档级小语料上 EM 把概率质量集中到高频虚词（的/the 与一切词共现），argmax 解码系统性偏向虚词——金标准实测所有源词对齐到"的"，译文投票全军覆没。Dice 的 dfF 分母天然抑制高频虚词；其代价（dfF 稀释多术语共享字）由 co-gate 与低 diceMin 补偿。
 

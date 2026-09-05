@@ -1,6 +1,14 @@
 {
   "name": "bilingual-term-extract",
-  "version": "1.0.0",
+  "version": "1.1.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tanyaqiong31029/Bilingual-Term-Extract.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tanyaqiong31029/Bilingual-Term-Extract/issues"
+  },
+  "homepage": "https://github.com/tanyaqiong31029/Bilingual-Term-Extract#readme",
   "description": "从双语平行文本自动提取源语-目标语对照术语表（统计召回 + LLM 精筛），可导出 TBX/CSV/JSON/Markdown，兼容 Trados MultiTerm 与 memoQ。Agent skill + 零依赖 CLI。",
   "main": "scripts/term_extract.js",
   "scripts": {

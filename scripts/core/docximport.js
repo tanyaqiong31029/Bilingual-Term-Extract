@@ -5,6 +5,7 @@
  */
 const fs = require('fs');
 const zlib = require('zlib');
+const Srt = require('./srt.js');
 
 const CRC_TABLE = (function () {
   const t = new Uint32Array(256);
@@ -101,12 +102,15 @@ function decodeText(buffer) {
   return new TextDecoder('utf-8').decode(u8);
 }
 
-/* 任意路径 → 文本（.txt / .md / .docx） */
+/* 任意路径 → 文本（.txt / .md / .docx / .srt / .vtt） */
 function readAnyPath(path) {
   const name = String(path).toLowerCase();
   const buf = fs.readFileSync(path);
   if (name.endsWith('.docx')) return { text: readDocxText(buf), type: 'docx' };
   if (name.endsWith('.doc')) throw new Error('暂不支持旧版 .doc，请在 Word 中另存为 .docx 或 .txt');
+  if (name.endsWith('.srt') || name.endsWith('.vtt')) {
+    return { text: Srt.cuesToText(decodeText(buf)), type: 'srt' };
+  }
   return { text: decodeText(buf), type: 'txt' };
 }
 

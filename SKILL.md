@@ -43,7 +43,7 @@ node scripts/term_extract.js candidates --src 源语文档 --tgt 目标文档 \
      --out output --name 项目名          # 可选: --min-freq 2 --top 300 --src-lang en --tgt-lang zh-CN
 ```
 
-产出 `output/<项目名>_candidates.json`（候选 + 统计译文 + 上下文例句）和 `_preview.md`（速览表）。控制台会打印句对数/候选数；**有效句对 < 5 会直接报错**——那是输入不是真平行文本的信号，回去找用户。
+产出 `output/<项目名>_candidates.json`（候选 + 统计译文 + 上下文例句）和 `_preview.md`（速览表）。控制台会打印句对数/候选数；**有效句对 < 3 直接报错**，3–4 个会放行但打 WARN——输入可能不是真平行文本，精筛时格外依赖上下文。
 
 ### 第 2 步：LLM 精筛（本技能的核心工作，由你完成）
 
@@ -108,6 +108,7 @@ node scripts/finalize.js --candidates output/项目名_candidates.json \
 ## 常见任务
 
 - **换语言对**：任何语言对皆可跑统计阶段；LLM 精筛按实际语言判定。中文单字停用表在 `scripts/core/stopwords.js`（刻意精简，勿随手加字——见文件头说明）。
+- **双语音幕**：两个单语 `.srt/.vtt` 直接作 `--src/--tgt`；每条 cue 独立成段，段落锚定天然生效。一个文件内中英交替的字幕先拆分再喂。
 - **调召回**：`--min-freq`（默认 2）降为 1 可召回低频术语，但噪声激增，LLM 精筛量翻倍。
 - **已有术语库**：把已有术语表转成 decisions.json（accept:true + tgt）可在精筛时保持一致性；黑名单转 accept:false。
 - **TMX 输入**：`--tmx file.tmx --src-lang en --tgt-lang zh-CN`，语言前缀自动匹配（en 命中 en-US）。

@@ -1,18 +1,16 @@
 'use strict';
 /* Bilingual-Term-Extract —— 术语译文投票
- * 句级共现关联度（Dice）+ 合格词元连续段 + 单次桥接 + 跨度打分 + 两轮共识投票。
+ * 句级共现关联度（Dice）+ 合格词元连续段 + 跨度打分 + 两轮共识投票。
  *
  * 为什么不用 IBM Model 1 EM：文档级小语料上，EM 会把概率质量集中到高频虚词
  * （的/the 与几乎所有词共现），argmax 解码系统性偏向虚词（金标准实测全部对齐到"的"）。
  *
  * 算法要点（在金标准基准上迭代得出）：
  *   - Dice = 2·co/(dfT+dfF)：高频虚词天然低分；
- *   - 合格门槛：co ≥ 0.75·dfT（翻译成分须在多数出现句中伴随术语）+ Dice ≥ 0.5 + dfF ≥ 2；
+ *   - 合格门槛：co ≥ 0.75·dfT（翻译成分须在多数出现句中伴随术语）+ Dice ≥ 0.3 + dfF ≥ 2；
  *   - brk（子句边界）只阻止跨度内部穿越，不阻止跨度起始（"，固件更新"的固是合法起点）；
- *   - 连续段的全部子跨度参与打分 Σdice − 0.6·max(0, 宽度−基准)；
- *   - 软桥接：段旁允许夹 1 个 co=1 的字（机器学习跨句被"云服务器"分流的"器"），
- *     但桥两端必须合格；
- *   - 两轮共识：第一轮每处出现投最优 span；随后取「票数最多、其中最短」的短语为
+ *   - 连续段的全部子跨度参与打分 Σdice − 0.3·max(0, 宽度−基准)；
+ *   - 两轮共识：第一轮每处出现投最优 span；随后在票数并列时取「被包含者」为
  *     共识核，包含共识核的 span 改投共识核——抑制共现动词粘连（run machine learning /
  *     行机器学习），因为真术语核会在其他出现句中以更纯的形式独立胜出。
  * 方法论参考：bitext-lexind（词对齐→词条→过滤）、Anymalign（共现对齐）。
@@ -25,7 +23,6 @@ const DEFAULTS = {
   coGate: 0.75,      // 合格门槛：co ≥ coGate·dfT（主闸：偶发同句词在此被挡）
   diceMin: 0.3,      // Dice 下限：只挡高频虚词；对多术语共享的字（网/器/边）
                      // dfF 会被其他术语稀释，门槛必须低（0.5 会把"物联网"的网踢出局）
-  softDice: 0.3,     // 桥接软字 Dice 下限
   widthPenalty: 0.3  // 超出基准宽度后每个词元的罚分：须低于共享字的真实 Dice（~0.57），
                      // 否则"云服务器"会被裁成"云服务"
 };
@@ -88,8 +85,6 @@ function voteTranslations(cands, pairs, opts) {
       }
       const full = t => (co.get(t.norm) || 0) >= coNeed &&
         D.get(t.norm) >= opts.diceMin && (dfF.get(t.norm) || 0) >= 2;
-      const soft = t => !full(t) && !t.brk && (co.get(t.norm) || 0) >= 1 &&
-        D.get(t.norm) >= opts.softDice && (dfF.get(t.norm) || 0) >= 1;
 
       const baseline = tgtCJK ? c.n + 1 : Math.ceil(c.n / 2);
       const cap = c.n + opts.slack;
@@ -117,8 +112,7 @@ function voteTranslations(cands, pairs, opts) {
 
       for (const r of runs) {
         const lo0 = r[0], hi0 = r[r.length - 1];
-        /* 全部子跨度（桥接机制已移除：co≥1 的桥接字在实践中全是垃圾，
-         * 而它想救的共享字在 diceMin=0.3 下本就合格） */
+        /* 全部子跨度 */
         for (let lo = lo0; lo <= hi0; lo++) {
           for (let hi = lo; hi <= hi0 && hi - lo + 1 <= cap; hi++) consider(lo, hi, -1);
         }

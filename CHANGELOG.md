@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.0 (2026-09-03)
+
+- 新增 SRT/VTT 字幕导入：宽容解析（VTT 头、无小时时间戳、标签/位置标记清洗），
+  每条 cue 独立成段以启用段落锚定；`--src/--tgt` 现支持 .txt/.md/.docx/.srt/.vtt
+- vote.js 清理桥接残留死代码（soft/softDice），算法注释与实现对齐
+- README 增加 CI badge；package.json 补 repository/bugs/homepage 字段
+- 回归测试新增 SRT 组 10 项断言（91 项）
+
 ## 1.0.0 (2026-09-03)
 
 首个发布版本。

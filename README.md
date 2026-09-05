@@ -1,12 +1,14 @@
 # Bilingual-Term-Extract
 
+[![CI](https://github.com/tanyaqiong31029/Bilingual-Term-Extract/actions/workflows/ci.yml/badge.svg)](https://github.com/tanyaqiong31029/Bilingual-Term-Extract/actions/workflows/ci.yml)
+
 从**双语平行文本**自动提取「源语-目标语」对照术语表的 agent 技能 + 零依赖 CLI。统计召回 + LLM 精筛的混合管线，产出可直接导入 **Trados MultiTerm / memoQ** 的 TBX 术语库。
 
 > 灵感来自 CAT 工具（Trados MultiTerm、memoQ、OmegaT）的术语管理能力，方法论参考 TermSuite（C-value）、Termolator（统计+过滤）、bitext-lexind（词对齐→词条→过滤）与 Anymalign（共现对齐）。
 
 ## 功能
 
-- **导入**：DOCX / TXT / Markdown（UTF-8、GBK、Big5 自动识别）、TMX 翻译记忆、预对齐句对 JSON
+- **导入**：DOCX / TXT / Markdown（UTF-8、GBK、Big5 自动识别）、SRT/VTT 双语字幕、TMX 翻译记忆、预对齐句对 JSON
 - **句对齐**：Gale-Church 统计对齐（数字锚点 + 段落锚定 + 滑窗分块），20 语种
 - **候选术语**（统计召回）：拉丁 n-gram + 软化 C-value 嵌套折扣 + 专名大写加权；中文 n-gram + PMI 内凝度 + 邻接熵
 - **统计译文**：句级 Dice 共现关联 + 连续段打分 + 两轮共识投票（不依赖任何外部模型/API）

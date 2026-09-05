@@ -210,6 +210,27 @@ section('docximport');
 eq('decodeText UTF-8', Imp.decodeText(Buffer.from('中文测试 hello', 'utf8')), '中文测试 hello');
 ok('decodeText GBK', Imp.decodeText(Uint8Array.from([0xD6, 0xD0, 0xCE, 0xC4])) === '中文');
 
+/* ---------- srt/vtt 导入 ---------- */
+section('srt');
+const Srt = require(path.join(SRC, 'core/srt.js'));
+eq('tsToMs 带小时', Srt.tsToMs('00:01:02,500'), 62500);
+eq('tsToMs 无小时 + 点（VTT）', Srt.tsToMs('01:02.500'), 62500);
+const srtText = '1\n00:00:01,000 --> 00:00:02,000\n<i>Edge computing</i>\n\n' +
+  '2\n00:00:03,000 --> 00:00:04,000\nreshapes {\\an8}networks\n\nNOTE 注释块\n';
+const cues = Srt.parse(srtText);
+eq('cue 数（跳过 NOTE）', cues.length, 2);
+eq('标签清洗', cues[0].text, 'Edge computing');
+eq('位置标签清洗', cues[1].text, 'reshapes networks');
+ok('VTT 头识别', Srt.parse('WEBVTT\n\n00:01.000 --> 00:02.000\n你好世界').length === 1);
+ok('looksLikeSrt', Srt.looksLikeSrt(srtText) && !Srt.looksLikeSrt('普通文本'));
+const srtConverted = Srt.cuesToText(srtText);
+ok('cuesToText 每 cue 一段', (srtConverted.match(/\n\n/g) || []).length === 1 && srtConverted.includes('Edge computing'));
+const tmpSrt = path.join(require('os').tmpdir(), 'bte_test_' + Date.now() + '.srt');
+fs.writeFileSync(tmpSrt, srtText, 'utf8');
+eq('readAnyPath 路由 .srt', Imp.readAnyPath(tmpSrt).type, 'srt');
+ok('SRT 文本可分句', Seg.segmentPlain(Imp.readAnyPath(tmpSrt).text, 'en').length >= 2);
+fs.unlinkSync(tmpSrt);
+
 /* ---------- 端到端：alignDocs + 基准数据 ---------- */
 section('端到端（基准样例）');
 const dataDir = path.join(__dirname, '..', 'benchmark', 'data');
