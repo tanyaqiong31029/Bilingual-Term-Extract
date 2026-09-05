@@ -1,0 +1,18 @@
+# 本地提交安检（防密 + 文件卫生层），由 .husky/pre-commit 统一调度：
+#   - 文件卫生：行尾空白 / 文件末尾换行 / YAML 语法 / 合并冲突标记 / 私钥检测
+#   - gitleaks：密钥泄露扫描（与 CI 的 gitleaks job 双保险）
+# 本仓库为纯 JavaScript（零第三方依赖），无 Python，故不挂 ruff。
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.18.4
+    hooks:
+      - id: gitleaks

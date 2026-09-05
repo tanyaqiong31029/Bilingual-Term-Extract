@@ -73,7 +73,7 @@ function extractCandidates(pairs, opts) {
     for (let n = 1; n <= maxN; n++) {
       for (let s = 0; s + n <= T; s++) {
         const e = s + n;
-        let ok = true, allCap = true;
+        let ok = true, _allCap = true;
         for (let k = s; k < e; k++) {
           const tk = toks[k];
           if (tk.cjk) { ok = false; break; }

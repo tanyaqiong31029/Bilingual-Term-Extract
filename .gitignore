@@ -3,3 +3,8 @@ node_modules/
 output/
 *.log
 _demo.html
+__pycache__/
+.ruff_cache/
+*.db
+.env
+.env.*

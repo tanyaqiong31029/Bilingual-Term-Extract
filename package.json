@@ -1,6 +1,7 @@
 {
   "name": "bilingual-term-extract",
   "version": "1.2.0",
+  "private": true,
   "repository": {
     "type": "git",
     "url": "git+https://github.com/tanyaqiong31029/Bilingual-Term-Extract.git"
@@ -12,8 +13,14 @@
   "description": "从双语平行文本自动提取源语-目标语对照术语表（统计召回 + LLM 精筛），可导出 TBX/CSV/JSON/Markdown，兼容 Trados MultiTerm 与 memoQ。Agent skill + 零依赖 CLI。",
   "main": "scripts/term_extract.js",
   "scripts": {
+    "prepare": "husky",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "test": "node tests/pipeline_test.js",
     "benchmark": "node benchmark/run_benchmark.js"
+  },
+  "lint-staged": {
+    "**/*.js": "eslint --fix"
   },
   "keywords": [
     "terminology-extraction",
@@ -28,5 +35,14 @@
   "license": "MIT",
   "engines": {
     "node": ">=18"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.6.0",
+    "@commitlint/config-conventional": "^19.6.0",
+    "@eslint/js": "^9.17.0",
+    "eslint": "^9.17.0",
+    "globals": "^15.14.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.3.0"
   }
 }
