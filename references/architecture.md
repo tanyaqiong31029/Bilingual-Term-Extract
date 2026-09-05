@@ -49,6 +49,15 @@ scripts/
 
 `.srt/.vtt` 由 docximport 的文件路由交给 srt.js：宽容解析（VTT 头、无小时时间戳、毫秒点/逗号、序号行可有可无），`<i>/<font>` 与 `{\an8}` 位置标签清洗，NOTE 块跳过；**每条 cue 输出为一个自然段**（空行分隔）。字幕 cue 是同序小段，双语 cue 数接近时段落锚定几乎零误差。
 
+### 单文件双语字幕拆分（splitBilingual）
+
+`--bilingual` 标志触发：cue 保留行级结构，逐行做文字系统分类（`lineScript`：cjk / latin / other，并列按 cjk > latin > other 取优先）。两种排版自动识别：
+
+- **same-cue**（过半 cue 内含 ≥2 种文字系统的行）：cue 内按文字系统归组，取最大的两组为句对；三行混排取两组、多余行计入 skipped。
+- **alternating / 分块**：cue 各为单一语言，按文字系统分桶，桶内按出现顺序两两配对（块状排布同样正确）。
+
+源语侧：`--src-lang` 按语言前缀匹配某一侧；省略则默认先出现的语言并告警。两侧语言用 `detectLang` 聚合标注。**限制**：两种语言须分属不同文字系统（en↔zh / en↔ru 可行）；同文字系统（en↔fr）拆不了，走 `--pairs`。
+
 ### 软化 C-value 嵌套折扣
 对候选 c，收集所有包含 c 为**连续子串**的更长候选 d（各自 freq ≥ minFreq）：
 

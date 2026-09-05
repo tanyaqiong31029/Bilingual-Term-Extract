@@ -231,6 +231,35 @@ eq('readAnyPath 路由 .srt', Imp.readAnyPath(tmpSrt).type, 'srt');
 ok('SRT 文本可分句', Seg.segmentPlain(Imp.readAnyPath(tmpSrt).text, 'en').length >= 2);
 fs.unlinkSync(tmpSrt);
 
+/* ---------- 单文件双语字幕拆分 ---------- */
+section('bilingual srt');
+const biSame = '1\n00:00:01,000 --> 00:00:02,000\n边缘计算正在重塑分布式系统。\nEdge computing is reshaping distributed systems.\n\n' +
+  '2\n00:00:03,000 --> 00:00:04,000\n机器学习模型运行在云服务器上。\nMachine learning models run on cloud servers.\n';
+const biAlt = '1\n00:00:01,000 --> 00:00:02,000\nEdge computing is reshaping distributed systems.\n\n' +
+  '2\n00:00:01,500 --> 00:00:02,500\n边缘计算正在重塑分布式系统。\n\n' +
+  '3\n00:00:03,000 --> 00:00:04,000\nMachine learning models run on cloud servers.\n\n' +
+  '4\n00:00:03,500 --> 00:00:04,500\n机器学习模型运行在云服务器上。\n';
+const s1 = Srt.splitBilingual(biSame, { srcLang: 'en' });
+eq('同 cue 模式识别', s1.pattern, 'same-cue');
+eq('同 cue 拆分对数', s1.pairs.length, 2);
+eq('同 cue 源语侧（--src-lang en）', s1.pairs[0].src, 'Edge computing is reshaping distributed systems.');
+eq('同 cue 译文侧', s1.pairs[0].tgt, '边缘计算正在重塑分布式系统。');
+const s2 = Srt.splitBilingual(biSame, {});
+ok('自动选先出现语言为源语', s2.srcLang === 'zh-CN' && s2.pairs[0].src.includes('边缘计算'),
+  { srcLang: s2.srcLang, src: s2.pairs[0].src });
+const s3 = Srt.splitBilingual(biAlt, { srcLang: 'en' });
+eq('交替 cue 模式识别', s3.pattern, 'alternating');
+eq('交替 cue 拆分对数', s3.pairs.length, 2);
+eq('交替 cue 配对顺序', s3.pairs[1].src, 'Machine learning models run on cloud servers.');
+const biBlock = '1\n00:00:01,000 --> 00:00:02,000\nFirst line one.\n\n2\n00:00:02,000 --> 00:00:03,000\nFirst line two.\n\n' +
+  '3\n00:00:03,000 --> 00:00:04,000\n第一句。\n\n4\n00:00:04,000 --> 00:00:05,000\n第二句。\n';
+const s4 = Srt.splitBilingual(biBlock, { srcLang: 'en' });
+eq('分块排布按序配对', s4.pattern, 'alternating');
+eq('分块配对对数', s4.pairs.length, 2);
+eq('分块配对正确', s4.pairs[0].tgt, '第一句。');
+ok('src-lang 不匹配报错', (() => { try { Srt.splitBilingual(biSame, { srcLang: 'ja' }); return false; } catch (e) { return true; } })());
+eq('单文件双语统计', s1.stats.cues, 2);
+
 /* ---------- 端到端：alignDocs + 基准数据 ---------- */
 section('端到端（基准样例）');
 const dataDir = path.join(__dirname, '..', 'benchmark', 'data');

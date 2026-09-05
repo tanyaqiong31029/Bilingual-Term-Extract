@@ -31,7 +31,7 @@ node <S>/benchmark/run_benchmark.js --verbose   # 逐术语核对召回与译文
 
 ### 第 0 步：确认输入
 
-- 两个互为译文的单语文档（`--src` / `--tgt`，.txt/.md/.docx），或 TMX 翻译记忆（`--tmx`），或预对齐句对 JSON（`--pairs`）。
+- 两个互为译文的单语文档（`--src` / `--tgt`，.txt/.md/.docx/.srt/.vtt），或 TMX 翻译记忆（`--tmx`），或预对齐句对 JSON（`--pairs`），或**单文件双语字幕**（`--src 字幕.srt --bilingual`）。
 - 语言自动检测；检测失败或同语时报错，此时**请用户显式指明** `--src-lang` / `--tgt-lang`，不要猜。
 - 用户没有现成双语文档时，说明本技能需要平行文本（同内容的两种语言版本），不要拿单语文档硬跑。
 
@@ -108,7 +108,12 @@ node scripts/finalize.js --candidates output/项目名_candidates.json \
 ## 常见任务
 
 - **换语言对**：任何语言对皆可跑统计阶段；LLM 精筛按实际语言判定。中文单字停用表在 `scripts/core/stopwords.js`（刻意精简，勿随手加字——见文件头说明）。
-- **双语音幕**：两个单语 `.srt/.vtt` 直接作 `--src/--tgt`；每条 cue 独立成段，段落锚定天然生效。一个文件内中英交替的字幕先拆分再喂。
+- **双语音幕**：两个单语 `.srt/.vtt` 直接作 `--src/--tgt`；每条 cue 独立成段，段落锚定天然生效。**单文件双语字幕**（同 cue 双语行或交替 cue）用 `--bilingual` 自动拆分：
+  ```bash
+  node scripts/term_extract.js candidates --src 双语.srt --bilingual --src-lang en --out output
+  ```
+  `--src-lang` 指定术语源语侧；省略则默认以先出现的语言为源语（会告警）。两种语言须分属不同文字系统（en↔zh / en↔ru 可行；en↔fr 同为拉丁字母拆不了，请用 `--pairs`）。短字幕记得 `--min-freq 1`，且统计译文大概率留白（dfT=1），精筛时从上下文补。
+- **调召回**：`--min-freq`（默认 2）降为 1 可召回低频术语，但噪声激增，LLM 精筛量翻倍。
 - **调召回**：`--min-freq`（默认 2）降为 1 可召回低频术语，但噪声激增，LLM 精筛量翻倍。
 - **已有术语库**：把已有术语表转成 decisions.json（accept:true + tgt）可在精筛时保持一致性；黑名单转 accept:false。
 - **TMX 输入**：`--tmx file.tmx --src-lang en --tgt-lang zh-CN`，语言前缀自动匹配（en 命中 en-US）。

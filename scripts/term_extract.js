@@ -21,6 +21,7 @@ const Aligner = require(path.join(SRC, 'core/aligner.js'));
 const U = require(path.join(SRC, 'core/util.js'));
 const Imp = require(path.join(SRC, 'core/docximport.js'));
 const Tmx = require(path.join(SRC, 'core/tmx.js'));
+const Srt = require(path.join(SRC, 'core/srt.js'));
 const Cand = require(path.join(SRC, 'core/candidates.js'));
 const Vote = require(path.join(SRC, 'core/vote.js'));
 const { toMD } = require(path.join(SRC, 'core/exporters.js'));
@@ -31,7 +32,7 @@ function parseArgs(argv) {
     const a = argv[i];
     if (a.startsWith('--')) {
       const key = a.slice(2);
-      if (key === 'include-review') { o[key] = true; continue; }
+      if (key === 'include-review' || key === 'bilingual') { o[key] = true; continue; }
       o[key] = argv[i + 1] !== undefined && !argv[i + 1].startsWith('--') ? argv[i + 1] : true;
       if (o[key] !== true) i++;
     } else o._.push(a);
@@ -79,7 +80,21 @@ function alignDocs(srcText, tgtText, srcLang, tgtLang) {
 
 function cmdCandidates(o) {
   let pairs, srcLang, tgtLang;
-  if (o.tmx) {
+  if (o.bilingual) {
+    if (!o.src) throw new Error('--bilingual 需要 --src 指向单个双语字幕文件（.srt/.vtt）');
+    const srcName = String(o.src).toLowerCase();
+    if (!srcName.endsWith('.srt') && !srcName.endsWith('.vtt')) {
+      throw new Error('--bilingual 目前只支持 SRT/VTT 字幕（.srt/.vtt），其他格式请直接用 --src/--tgt 双文件');
+    }
+    const raw = Imp.decodeText(fs.readFileSync(o.src)); // 原始字幕文本，勿经 readAnyPath（会剥掉时间轴）
+    const split = Srt.splitBilingual(raw, { srcLang: o['src-lang'] });
+    const r = ensurePairLangs(o['src-lang'] || split.srcLang, split.tgtLang);
+    srcLang = r[0]; tgtLang = r[1];
+    pairs = split.pairs;
+    console.log('双语字幕拆分: ' + split.pattern + ' 模式，' + split.stats.cues + ' 条 cue → ' +
+      split.stats.pairs + ' 对（跳过 ' + split.stats.skipped + ' 行）');
+    if (!o['src-lang']) console.warn('WARN: 未指定 --src-lang，默认以先出现的语言（' + srcLang + '）为源语');
+  } else if (o.tmx) {
     srcLang = o['src-lang']; tgtLang = o['tgt-lang'];
     if (!srcLang || !tgtLang) throw new Error('--tmx 模式必须显式给出 --src-lang 与 --tgt-lang');
     [srcLang, tgtLang] = ensurePairLangs(srcLang, tgtLang);
@@ -149,8 +164,9 @@ function main() {
   try {
     if (cmd === 'candidates') return cmdCandidates(o);
     if (!cmd || o.help) {
-      console.log('Bilingual-Term-Extract v1.0.0');
-      console.log('子命令:\n  candidates   统计阶段：双语文档 → 候选术语 + 统计译文（详见 --help 后各参数）');
+      console.log('Bilingual-Term-Extract v1.2.0');
+      console.log('子命令:\n  candidates   统计阶段：双语文档 → 候选术语 + 统计译文');
+      console.log('  --bilingual  单文件双语字幕拆分（与 --src 搭配，.srt/.vtt）');
       console.log('后续 LLM 精筛与定稿: scripts/validate.js + scripts/finalize.js（见 SKILL.md）');
       return;
     }
