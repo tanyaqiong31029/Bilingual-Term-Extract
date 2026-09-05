@@ -1,0 +1,7 @@
+# 提交前本地安检（拦截机制第 1 关）
+# 1) lint-staged —— 仅对暂存的 JS 文件执行 eslint --fix（纯格式/ lint 级修复）
+npx lint-staged
+
+# 2) 全仓库卫生 + 防密：pre-commit 框架（文件卫生 / gitleaks）
+#    全量历史扫描由 .github/workflows/ci.yml 的 gitleaks job 负责。
+git diff --cached --name-only --diff-filter=ACMR -z | xargs -0 uvx pre-commit run --files

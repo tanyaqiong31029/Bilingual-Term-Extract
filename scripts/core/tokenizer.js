@@ -40,7 +40,7 @@ function tokenize(text) {
     if (/[\p{L}\p{N}]/u.test(ch)) {
       // 累积拉丁/数字词元（允许内部连字符、撇号）
       let j = i + 1;
-      while (j < L && /[\p{L}\p{N}'’\-]/u.test(t[j]) && !isCJKChar(t[j])) j++;
+      while (j < L && /[\p{L}\p{N}'’-]/u.test(t[j]) && !isCJKChar(t[j])) j++;
       // 去掉首尾连字符（如 " -5 " 的孤立连字符）
       let s = i, e = j;
       while (s < e && /[-'’]/.test(t[s])) s++;

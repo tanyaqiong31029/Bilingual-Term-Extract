@@ -138,7 +138,7 @@ function voteTranslations(cands, pairs, opts) {
       if (ch.span && ch.span.phrase) pass1.set(ch.span.phrase, (pass1.get(ch.span.phrase) || 0) + 1);
     }
     let core = null;
-    for (const [a, ca] of pass1) {
+    for (const [a, _ca] of pass1) {
       for (const [b, cb] of pass1) {
         if (a === b || a.indexOf(b) < 0) continue;
         if (!core || cb > core.cnt || (cb === core.cnt && b.length < core.phrase.length)) {
