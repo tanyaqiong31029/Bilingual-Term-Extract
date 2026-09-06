@@ -15,8 +15,11 @@ jobs:
         with:
           node-version: 20
 
-      - name: 无头回归测试（81 项断言：分词/候选/投票/导出/校验/定稿/TMX/编码）
-        run: node tests/pipeline_test.js
+      - name: 无头回归测试（分词/候选/投票/导出/校验/定稿/TMX/SRT/双语拆分/DOCX，总数以输出为准）
+        run: node tests/pipeline_test.js | tee /tmp/test.out | grep -q '全部通过'
+
+      - name: 回归断言总数（防文档漂移，实际以测试输出为准）
+        run: grep -oE '通过 [0-9]+ / [0-9]+' /tmp/test.out
 
       - name: 金标准基准（EN↔ZH 双向：召回 ≥85%，译文 top-3 ≥70%，端到端导出）
         run: node benchmark/run_benchmark.js
@@ -35,6 +38,24 @@ jobs:
 
       - name: ESLint（与本地 lint-staged 同一套 flat config）
         run: npm run lint
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 安装依赖
+        run: npm ci
+
+      - name: 依赖漏洞审计（high 及以上为门禁）
+        run: npm audit --audit-level=high
+
+      - name: 依赖过期检查（仅提示，不作门禁）
+        run: npm outdated || true
 
   gitleaks:
     runs-on: ubuntu-latest
