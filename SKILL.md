@@ -12,7 +12,7 @@ description: 双语术语提取技能 — 从双语平行文本（DOCX/TXT/Markd
 ## 立即执行：回归测试与基准（动手改代码之前和之后都要跑，约 3 秒）
 
 ```bash
-node <S>/tests/pipeline_test.js          # 无头回归 81 项断言
+node <S>/tests/pipeline_test.js          # 无头回归 115 项断言
 node <S>/benchmark/run_benchmark.js      # 金标准基准（EN↔ZH 各 16 术语对）
 node <S>/benchmark/run_benchmark.js --verbose   # 逐术语核对召回与译文命中
 ```
