@@ -276,6 +276,71 @@ ok('machine learning 共识收敛', e2eBy('machine learning') && e2eBy('machine 
   e2eBy('machine learning') && e2eBy('machine learning').translations);
 ok('单句术语（encryption）译文留白', e2eBy('encryption') && e2eBy('encryption').translations.length === 0);
 
+/* ---------- DOCX 全链路 ---------- */
+section('docx');
+const { makeDocx, makeZip, pText } = require(path.join(__dirname, 'helpers', 'makeDocx.js'));
+const { execSync } = require('child_process');
+const ROOT = path.join(__dirname, '..');
+const tmp = fs.mkdtempSync(path.join(require('os').tmpdir(), 'bte_docx_'));
+
+// 损坏文件与非 DOCX ZIP：必须抛出可读错误而非静默产出
+ok('损坏 DOCX 抛错', (() => { try { Imp.readDocxText(Buffer.from('not a zip at all')); return false; } catch (e) { return /ZIP\/DOCX/.test(e.message); } })());
+ok('缺 document.xml 抛错', (() => {
+  try { Imp.readDocxText(makeZip([{ name: 'other.xml', data: Buffer.from('x') }])); return false; }
+  catch (e) { return /word\/document\.xml/.test(e.message); }
+})());
+
+// 解析：段落 / <w:tab> / <w:br> / 表格单元格 / 脚注引用不混入正文
+const enDocx = makeDocx([
+  pText('Edge computing is reshaping distributed systems.'),
+  pText('Machine learning models run on cloud servers.'),
+  '<w:p><w:r><w:t>real-time</w:t></w:r><w:r><w:br/></w:r><w:r><w:tab/><w:t>inference</w:t></w:r></w:p>',
+  '<w:tbl><w:tr><w:tc><w:p><w:r><w:t>data pipelines</w:t></w:r></w:p></w:tc>' +
+    '<w:tc><w:p><w:r><w:t>keep models fresh</w:t></w:r></w:p></w:tc></w:tr></w:tbl>',
+  '<w:p><w:r><w:t>gateways</w:t></w:r><w:r><w:footnoteReference w:id="2"/></w:r></w:p>'
+]);
+const enDocxText = Imp.readDocxText(enDocx);
+ok('正文段落提取', enDocxText.includes('Edge computing is reshaping distributed systems.'));
+ok('br 换行保留', /real-time\n/.test(enDocxText));
+ok('tab 转制表符', /\t/.test(enDocxText));
+ok('表格单元格成段', enDocxText.includes('data pipelines') && enDocxText.includes('keep models fresh'));
+ok('脚注引用不产生幽灵文本', !/footnote|2\n/.test(enDocxText.split('gateways')[1] || ''));
+
+// E2E：双语 DOCX → candidates → decisions → validate → finalize → TBX
+const zhDocx = makeDocx([
+  pText('边缘计算正在重塑分布式系统。'),
+  pText('机器学习模型运行在云服务器上。'),
+  '<w:p><w:r><w:t>实时推理</w:t></w:r></w:p>',
+  '<w:tbl><w:tr><w:tc><w:p><w:r><w:t>数据管道</w:t></w:r></w:p></w:tc>' +
+    '<w:tc><w:p><w:r><w:t>保持模型更新</w:t></w:r></w:p></w:tc></w:tr></w:tbl>',
+  pText('网关')
+]);
+fs.writeFileSync(path.join(tmp, 'en.docx'), enDocx);
+fs.writeFileSync(path.join(tmp, 'zh.docx'), zhDocx);
+execSync('node scripts/term_extract.js candidates --src "' + path.join(tmp, 'en.docx') +
+  '" --tgt "' + path.join(tmp, 'zh.docx') + '" --min-freq 1 --out "' + tmp + '" --name docxtest', { cwd: ROOT, stdio: 'pipe' });
+const docxCands = JSON.parse(fs.readFileSync(path.join(tmp, 'docxtest_candidates.json'), 'utf8'));
+eq('DOCX 候选语言对', [docxCands.meta.srcLang, docxCands.meta.tgtLang], ['en', 'zh-CN']);
+const wantPairs = { 'edge computing': '边缘计算', 'machine learning': '机器学习', 'data pipeline': '数据管道' };
+const decisions = docxCands.candidates
+  .filter(c => wantPairs[c.norm] || (c.translations || []).length)
+  .map(c => ({ term: c.term, accept: true, tgt: wantPairs[c.norm] || c.translations[0].t, conf: 0.9 }));
+ok('DOCX 关键术语召回', Object.keys(wantPairs).every(n => docxCands.candidates.some(c => c.norm === n)),
+  docxCands.candidates.map(c => c.norm).slice(0, 12));
+fs.writeFileSync(path.join(tmp, 'decisions.json'), JSON.stringify(decisions, null, 2));
+execSync('node scripts/validate.js "' + path.join(tmp, 'decisions.json') + '" "' + path.join(tmp, 'docxtest_candidates.json') + '"', { cwd: ROOT, stdio: 'pipe' });
+execSync('node scripts/finalize.js --candidates "' + path.join(tmp, 'docxtest_candidates.json') +
+  '" --decisions "' + path.join(tmp, 'decisions.json') + '" --out "' + tmp + '"', { cwd: ROOT, stdio: 'pipe' });
+const docxTbx = fs.readFileSync(path.join(tmp, 'terms.tbx'), 'utf8');
+const tbxTerms = [...docxTbx.matchAll(/<term>([\s\S]*?)<\/term>/g)].map(m => m[1]);
+const tbxNorms = new Set(tbxTerms.map(t => normKey(t)));
+ok('DOCX E2E TBX 含期望术语对（norm 归一）', Object.entries(wantPairs).every(([en, zh]) =>
+  tbxNorms.has(normKey(en)) && tbxNorms.has(normKey(zh))),
+  { got: tbxTerms });
+const docxReport = JSON.parse(fs.readFileSync(path.join(tmp, 'terms_report.json'), 'utf8'));
+ok('DOCX E2E report 语言对正确', docxReport.srcLang === 'en' && docxReport.tgtLang === 'zh-CN');
+try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) { /* 忽略 */ }
+
 /* ---------- 汇总 ---------- */
 console.log('\n通过 ' + pass + ' / ' + (pass + fail));
 if (fail) { console.error('存在 ' + fail + ' 项失败'); process.exit(1); }
