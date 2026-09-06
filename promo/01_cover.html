@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:1080px; height:1440px; overflow:hidden; }
+  body {
+    font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    background:#F6F7F9; color:#101828; position:relative;
+  }
+  .dots { position:absolute; inset:0; opacity:.5;
+    background-image:radial-gradient(#D8DDE6 1.5px, transparent 1.5px);
+    background-size:44px 44px; }
+  .wrap { position:absolute; inset:0; padding:84px 96px; }
+  /* 刊头 */
+  .head { display:flex; align-items:center; gap:20px; }
+  .logo { width:56px; height:56px; border-radius:16px; background:#101828;
+    display:flex; align-items:center; justify-content:center; color:#fff;
+    font-size:26px; font-weight:900; }
+  .head .t { flex:1; }
+  .head .t b { font-size:27px; letter-spacing:.5px; }
+  .head .t span { display:block; font-size:19px; color:#667085; letter-spacing:2.5px; margin-top:2px; }
+  .free { border:2px solid #101828; border-radius:999px; padding:12px 26px;
+    font-size:22px; font-weight:800; letter-spacing:3px; }
+  .rule { height:2px; background:#101828; margin-top:38px; }
+  /* 主标区 */
+  .eyebrow { margin-top:46px; display:flex; align-items:center; gap:16px;
+    font-size:24px; font-weight:800; letter-spacing:4px; color:#2456E5; }
+  .eyebrow::before { content:''; width:44px; height:4px; background:#2456E5; }
+  h1 { margin-top:22px; font-size:112px; line-height:1.16; font-weight:900; letter-spacing:4px; }
+  h1 .u { box-shadow:inset 0 -22px 0 #FFC845; }
+  .lead { margin-top:26px; font-size:27px; color:#3A4354; font-weight:600; line-height:1.62; letter-spacing:1px; }
+  .lead b { color:#2456E5; }
+  /* 流程胶囊 */
+  .chips { margin-top:34px; display:flex; align-items:center; gap:14px; }
+  .chip { background:#fff; border:1.5px solid #D0D5DD; border-radius:999px;
+    padding:14px 24px; font-size:23px; font-weight:800; letter-spacing:1px;
+    box-shadow:0 2px 6px rgba(16,24,40,.05); white-space:nowrap; }
+  .chip em { font-style:normal; margin-right:8px; }
+  .chip.hot { background:#101828; border-color:#101828; color:#FFC845; }
+  .arrow { color:#98A2B3; font-size:28px; font-weight:900; }
+  /* 底部术语表卡片 */
+  .shot { position:absolute; left:50%; transform:translateX(-50%); width:848px; bottom:126px;
+    background:#fff; border-radius:20px; padding:13px 13px 6px;
+    box-shadow:0 24px 60px rgba(16,24,40,.16); border:1px solid #E4E7EC; }
+  .shot .bar { display:flex; align-items:center; gap:9px; padding:4px 6px 12px; }
+  .shot .bar i { width:14px; height:14px; border-radius:50%; }
+  .shot .bar i:nth-child(1){ background:#F04438; } .shot .bar i:nth-child(2){ background:#F79009; } .shot .bar i:nth-child(3){ background:#12B76A; }
+  .shot .bar span { margin-left:10px; flex:1; background:#F2F4F7; border-radius:7px;
+    font-size:17px; color:#667085; padding:5px 14px; font-weight:600; }
+  table { width:100%; border-collapse:collapse; font-size:24px; }
+  thead th { background:#101828; color:#fff; font-weight:800; letter-spacing:2px;
+    padding:16px 18px; text-align:left; font-size:21px; }
+  thead th:first-child { border-radius:10px 0 0 0; } thead th:last-child { border-radius:0 10px 0 0; }
+  tbody td { padding:17px 18px; border-bottom:1px solid #EAECF0; font-weight:700; }
+  tbody tr:last-child td { border-bottom:none; }
+  tbody td.zh { font-weight:800; }
+  .conf { display:inline-flex; align-items:center; gap:10px; font-weight:800; }
+  .conf i { width:14px; height:14px; border-radius:50%; background:#12B76A; display:inline-block; }
+  .conf.mid i { background:#F79009; }
+  .tag { display:inline-block; margin-left:12px; padding:4px 12px; border-radius:6px;
+    font-size:17px; font-weight:800; letter-spacing:1px; }
+  .tag.ok { background:#ECFDF3; color:#027A48; }
+  .tag.ai { background:#EFF4FF; color:#2456E5; }
+  .foot { position:absolute; left:96px; right:96px; bottom:52px;
+    display:flex; justify-content:space-between; align-items:center;
+    font-size:21px; color:#667085; font-weight:700; letter-spacing:2px; }
+  .foot .hint { color:#2456E5; letter-spacing:2px; }
+</style>
+</head>
+<body>
+  <div class="dots"></div>
+  <div class="wrap">
+    <div class="head">
+      <div class="logo">⇋</div>
+      <div class="t"><b>Bilingual-Term-Extract 双语术语提取</b><span>OPEN SOURCE · LOCAL ONLY</span></div>
+      <div class="free">免费 开源</div>
+    </div>
+    <div class="rule"></div>
+    <div class="eyebrow">译前准备神器 · TERMINOLOGY</div>
+    <h1>双语<span class="u">术语表</span><br>自动提取</h1>
+    <div class="lead">双语文档喂进去，Trados / memoQ 术语库直接导入<br>统计召回 + <b>AI 精筛</b>，人工只审低置信条目</div>
+    <div class="chips">
+      <div class="chip"><em>📖</em>DOCX 字幕 TMX</div>
+      <div class="arrow">→</div>
+      <div class="chip hot"><em>⚙</em>统计 + AI 精筛</div>
+      <div class="arrow">→</div>
+      <div class="chip"><em>📤</em>TBX / Excel</div>
+    </div>
+    <div class="shot">
+      <div class="bar"><i></i><i></i><i></i><span>bilingual-term-extract · terms.tbx</span></div>
+      <table>
+        <thead><tr><th style="width:44%">源语术语 (EN)</th><th style="width:36%">目标语术语 (ZH)</th><th>置信度</th></tr></thead>
+        <tbody>
+          <tr><td>edge computing</td><td class="zh">边缘计算</td><td><span class="conf"><i></i>0.95</span><span class="tag ai">AI 复核</span></td></tr>
+          <tr><td>machine learning</td><td class="zh">机器学习</td><td><span class="conf"><i></i>0.92</span><span class="tag ai">AI 复核</span></td></tr>
+          <tr><td>data pipeline</td><td class="zh">数据管道</td><td><span class="conf"><i></i>0.90</span><span class="tag ai">AI 复核</span></td></tr>
+          <tr><td>gateway</td><td class="zh">网关</td><td><span class="conf mid"><i></i>1.00</span><span class="tag ok">自动收录</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="foot">
+      <span>GitHub 搜 Bilingual-Term-Extract</span>
+      <span class="hint">零依赖 · 全程本地 · CI 全绿</span>
+    </div>
+  </div>
+</body>
+</html>
