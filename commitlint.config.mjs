@@ -7,4 +7,6 @@ export default {
   rules: {
     "header-max-length": [2, "always", 100],
   },
+  // Dependabot 的提交 body 带长链接，body-max-line-length 必然超限——整体豁免（官方推荐做法）
+  ignores: [(commit) => commit.includes("Bumps")],
 };
