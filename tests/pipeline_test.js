@@ -146,6 +146,17 @@ const csv = Exp.toCSV(entries);
 ok('CSV BOM', csv.charCodeAt(0) === 0xFEFF);
 ok('CSV 引号包裹逗号', csv.includes('"plain, comma"'));
 ok('CSV 行数', csv.trim().split('\n').length === 3);
+
+// Excel 公式注入安全模式（默认开启）
+const evil = [{ src: '=HYPERLINK("http://evil","x")', tgt: '+86设备', freq: 1, conf: 0.5, status: 'review', pos: '', domain: '', note: '-开头备注' }];
+const csvSafe = Exp.toCSV(evil);
+ok('CSV = 开头加单引号防护', csvSafe.includes('"\'=HYPERLINK'), csvSafe);
+ok('CSV + 开头加单引号防护', csvSafe.includes('"\'+86设备"'));
+ok('CSV - 开头加单引号防护', csvSafe.includes('"\'-开头备注"'));
+const csvRaw = Exp.toCSV(evil, { excelSafe: false });
+ok('excelSafe:false 保留原文', csvRaw.includes('"=HYPERLINK') && !csvRaw.includes('"\'=HYPERLINK'));
+const csvNormal = Exp.toCSV(entries);
+ok('正常术语不受防护影响', csvNormal.includes('"edge computing"') === false && csvNormal.includes('"a<b>"'));
 const md = Exp.toMD(entries, 'en', 'zh-CN');
 ok('MD 管道转义', md.includes('x\\|y'));
 const json = Exp.toJSON(entries, { a: 1 });
@@ -204,6 +215,30 @@ eq('parseTmx 过滤单语 tu', Tmx.parseTmx(tmxText).length, 2);
 const tmxPairs = Tmx.extractPairs(tmxText, 'en', 'zh-CN');
 eq('extractPairs 语言前缀匹配', tmxPairs.length, 2);
 ok('行内标签剥离', tmxPairs[0].src.includes('Hello') && tmxPairs[0].src.includes('world'), tmxPairs[0].src);
+
+/* 真实 CAT 工具导出样例（Trados 风格）：bpt/ept 内容是转义后的原生标记，必须连内容移除 */
+const tradosTmx = '<?xml version="1.0" encoding="utf-8"?><tmx version="1.4">' +
+  '<header creationtool="SDL Trados Studio" creationtoolversion="17.0" srclang="en-US" datatype="plaintext"/>' +
+  '<body>' +
+  '<tu creationtool="SDL Trados Studio" creationtoolversion="17.0" datatype="plaintext">' +
+  '<prop type="x-file">Document.docx</prop>' +
+  '<tuv xml:lang="en-US"><seg>The <bpt i="1">&lt;cf charset="0"&gt;</bpt><bpt i="2">&lt;b&gt;</bpt>edge computing' +
+  '<ept i="2">&lt;/b&gt;</ept><ept i="1">&lt;/cf&gt;</ept> model scales</seg></tuv>' +
+  '<tuv xml:lang="zh-CN"><seg><bpt i="1">&lt;b&gt;</bpt>边缘计算<ept i="1">&lt;/b&gt;</ept>模型可扩展</seg></tuv>' +
+  '</tu>' +
+  '<tu><tuv xml:lang="en-US"><seg>Run <ph x="1">&lt;workload&gt;</ph> locally<hi>&lt;not native&gt;</hi></seg></tuv>' +
+  '<tuv xml:lang="zh-CN"><seg>本地运行<ph x="1">&lt;工作负载&gt;</ph></seg></tuv></tu>' +
+  '</body></tmx>';
+const tPairs = Tmx.extractPairs(tradosTmx, 'en-US', 'zh-CN');
+eq('Trados 样例句对数', tPairs.length, 2);
+eq('bpt/ept 原生标记连内容移除', tPairs[0].src, 'The edge computing model scales');
+eq('中文侧 bpt/ept 同样清除', tPairs[0].tgt, '边缘计算模型可扩展');
+eq('ph 内容移除、hi 内容保留', tPairs[1].src, 'Run locally<not native>', tPairs[1].src);
+ok('术语正文无残留尖括号污染', !/[<>]/.test(tPairs[0].src) && !/[<>]/.test(tPairs[0].tgt.slice(0, 4)), tPairs);
+
+/* 异常 TMX：截断/无 seg/空文件不崩溃 */
+ok('截断 TMX 不崩溃', Tmx.extractPairs('<tmx><body><tu><tuv xml:lang="en"><seg>broken', 'en', 'zh').length === 0);
+ok('空 TMX 返回空', Tmx.extractPairs('', 'en', 'zh').length === 0);
 
 /* ---------- docximport ---------- */
 section('docximport');
@@ -290,6 +325,25 @@ ok('缺 document.xml 抛错', (() => {
   catch (e) { return /word\/document\.xml/.test(e.message); }
 })());
 
+// zip bomb 防护：STORE 与 DEFLATE 均受展开上限约束（可用 maxEntryBytes 收紧测试）
+ok('STORE 超上限抛错', (() => {
+  try { Imp.readDocxText(makeDocx([pText('hello')]), { maxEntryBytes: 16 }); return false; }
+  catch (e) { return /安全上限/.test(e.message); }
+})());
+const bombXml = Buffer.from('<w:document><w:body>' + '<w:p><w:r><w:t>x</w:t></w:r></w:p>'.repeat(200) + '</w:body></w:document>');
+ok('DEFLATE 超上限抛错（zip bomb 防护）', (() => {
+  try { Imp.readDocxText(makeZip([{ name: 'word/document.xml', data: bombXml, deflate: true }]), { maxEntryBytes: 64 }); return false; }
+  catch (e) { return /疑似 zip bomb/.test(e.message); }
+})());
+ok('DEFLATE 上限内正常解压', Imp.readDocxText(makeZip([{ name: 'word/document.xml', data: bombXml, deflate: true }])).includes('x'));
+ok('坏 deflate 流报错而非崩溃', (() => {
+  const z = makeZip([{ name: 'word/document.xml', data: bombXml, deflate: true }]);
+  // 破坏压缩载荷（本地头 30B + 文件名 17B 之后）
+  for (let i = 47; i < 61; i++) z[i] = 0xFF;
+  try { Imp.readDocxText(z); return false; }
+  catch (e) { return /解压失败/.test(e.message); }
+})());
+
 // 解析：段落 / <w:tab> / <w:br> / 表格单元格 / 脚注引用不混入正文
 const enDocx = makeDocx([
   pText('Edge computing is reshaping distributed systems.'),
@@ -340,6 +394,62 @@ ok('DOCX E2E TBX 含期望术语对（norm 归一）', Object.entries(wantPairs)
 const docxReport = JSON.parse(fs.readFileSync(path.join(tmp, 'terms_report.json'), 'utf8'));
 ok('DOCX E2E report 语言对正确', docxReport.srcLang === 'en' && docxReport.tgtLang === 'zh-CN');
 try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) { /* 忽略 */ }
+
+/* ---------- 覆盖率基线补测：CLI 备选入口 + 异常出口 + 滑窗长文 ---------- */
+section('CLI 备选入口');
+const { execFileSync } = require('child_process');
+const runCLI = (args, opts) => execFileSync('node', args.map(String), { cwd: ROOT, stdio: 'pipe', ...opts });
+const cliDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'bte_cli_'));
+
+// --tmx 入口（真实 Trados 风格样例）
+fs.writeFileSync(path.join(cliDir, 'mem.tmx'), tradosTmx);
+runCLI(['scripts/term_extract.js', 'candidates', '--tmx', path.join(cliDir, 'mem.tmx'),
+  '--src-lang', 'en-US', '--tgt-lang', 'zh-CN', '--min-freq', '1', '--out', cliDir, '--name', 'tmxc']);
+const tmxC = JSON.parse(fs.readFileSync(path.join(cliDir, 'tmxc_candidates.json'), 'utf8'));
+eq('CLI --tmx 语言对与句对', [tmxC.meta.srcLang, tmxC.meta.tgtLang], ['en', 'zh-CN']);
+ok('CLI --tmx 候选非空', tmxC.candidates.length > 0, tmxC.candidates.length);
+
+// --pairs 入口
+fs.writeFileSync(path.join(cliDir, 'pairs.json'), JSON.stringify([
+  { src: 'Neural networks learn representations.', tgt: '神经网络学习表示。' },
+  { src: 'Neural networks need data.', tgt: '神经网络需要数据。' }
+]));
+runCLI(['scripts/term_extract.js', 'candidates', '--pairs', path.join(cliDir, 'pairs.json'),
+  '--out', cliDir, '--name', 'pairc']);
+const pairC = JSON.parse(fs.readFileSync(path.join(cliDir, 'pairc_candidates.json'), 'utf8'));
+eq('CLI --pairs 语言自动检测', [pairC.meta.srcLang, pairC.meta.tgtLang], ['en', 'zh-CN']);
+
+// --bilingual 入口（同 cue 双语行字幕）
+fs.writeFileSync(path.join(cliDir, 'bi.srt'), biSame);
+const biOut = runCLI(['scripts/term_extract.js', 'candidates', '--src', path.join(cliDir, 'bi.srt'),
+  '--bilingual', '--src-lang', 'en', '--min-freq', '1', '--out', cliDir, '--name', 'bic']).toString();
+ok('CLI --bilingual 打印拆分模式', biOut.includes('same-cue'), biOut.split('\n')[0]);
+
+// 异常出口：非法 JSON / 未知子命令 / finalize 拒绝清单 / --help
+const badExit = (args, want) => {
+  try { runCLI(args); return false; } catch (e) { return e.status === want; }
+};
+ok('非法 decisions → finalize 退出码 1', badExit(['scripts/finalize.js', '--candidates', path.join(cliDir, 'pairc_candidates.json'),
+  '--decisions', path.join(cliDir, 'nonexist.json'), '--out', cliDir], 2));
+fs.writeFileSync(path.join(cliDir, 'bad.json'), JSON.stringify([{ term: 'ghost', accept: true }]));
+ok('校验失败 → finalize 退出码 1', badExit(['scripts/finalize.js', '--candidates', path.join(cliDir, 'pairc_candidates.json'),
+  '--decisions', path.join(cliDir, 'bad.json'), '--out', cliDir], 1));
+ok('未知子命令 → 退出码 1', badExit(['scripts/term_extract.js', 'nope'], 1));
+ok('--help 正常退出', runCLI(['scripts/term_extract.js']).toString().includes('Bilingual-Term-Extract'));
+try { fs.rmSync(cliDir, { recursive: true, force: true }); } catch (e) { /* 忽略 */ }
+
+/* 滑窗长文（alignLarge）：句数超 DP 上限 2.6M 自动分块，数字锚点保证 1-1 */
+section('滑窗长文');
+const N = 1700;
+const longEN = Array.from({ length: N }, (_, i) => `Report ${i} documents edge computing metric ${i} for the quarterly review.`).join(' ');
+const longZH = Array.from({ length: N }, (_, i) => `报告${i}记录了边缘计算指标${i}的季度评审情况。`).join(' ');
+const t0 = Date.now();
+const longR = TE.alignDocs(longEN, longZH, 'en', 'zh-CN');
+const dt = Date.now() - t0;
+ok('滑窗对齐 1-1 覆盖率 ≥ 99%', longR.pairs.length >= N * 0.99, `${longR.pairs.length}/${N}`);
+ok('滑窗对齐无串位（抽样校验序号）', [0, (N / 2) | 0, N - 1].every(i =>
+  longR.pairs[i] && longR.pairs[i].src.includes(` ${i} `) && longR.pairs[i].tgt.includes(`${i}记录`)), '');
+console.log('  （滑窗耗时 ' + dt + 'ms）');
 
 /* ---------- 汇总 ---------- */
 console.log('\n通过 ' + pass + ' / ' + (pass + fail));

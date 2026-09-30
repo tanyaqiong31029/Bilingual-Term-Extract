@@ -1,11 +1,22 @@
 'use strict';
 /* Bilingual-Term-Extract —— TMX 1.4 导入（正则解析，双端零依赖）
- * 只取每个 <tu> 内各 <tuv> 的 <seg> 文本；行内标签（<bpt>/<ept>/<it>/<ph>/<hi>）剥离。
+ * 只取每个 <tu> 内各 <tuv> 的 <seg> 文本；行内标签按 TMX 元素语义处理：
+ *   - bpt/ept/it/ph：原生格式代码，元素内容本身就是转义后的原生标记
+ *     （如 <bpt i="1">&lt;b&gt;</bpt>）——连内容一起移除，否则 <b> 会污染术语正文；
+ *   - hi：高亮包裹（内容是译文正文）——去壳留内容；
+ *   - 其余未知标签：剥壳留内容。
  */
 const { xmlUnescape } = require('./docximport.js');
 
+/* 原生代码元素（含内容移除）：配对与自闭合两种形态 */
+const CODE_RE = /<(?:bpt|ept|it|ph)\b[^>]*>[\s\S]*?<\/(?:bpt|ept|it|ph)\s*>|<(?:bpt|ept|it|ph)\b[^>]*\/>/gi;
+
 function segText(segXml) {
-  return xmlUnescape(String(segXml || '').replace(/<[^>]+>/g, '')).replace(/\s+/g, ' ').trim();
+  return xmlUnescape(String(segXml || '')
+    .replace(CODE_RE, '')
+    .replace(/<hi\b[^>]*>([\s\S]*?)<\/hi\s*>/gi, '$1')
+    .replace(/<[^>]+>/g, ''))
+    .replace(/\s+/g, ' ').trim();
 }
 
 function normLangAttr(l) {

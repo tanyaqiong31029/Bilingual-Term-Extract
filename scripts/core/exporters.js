@@ -43,9 +43,20 @@ function csvField(v) {
   return '"' + s.replace(/"/g, '""') + '"';
 }
 
-function toCSV(entries) {
+/* Excel 公式注入防护（OWASP CSV Injection）：以 = + - @ Tab CR 开头的单元格
+ * 会被 Excel 当公式执行。前缀单引号使其降级为纯文本。 */
+const FORMULA_GUARD = /^[=+\-@\t\r]/;
+function excelSafeCell(v) {
+  const s = String(v == null ? '' : v);
+  return FORMULA_GUARD.test(s) ? "'" + s : s;
+}
+
+function toCSV(entries, opts) {
+  const safe = !(opts && opts.excelSafe === false);
+  const guard = safe ? excelSafeCell : (v => v);
   const head = 'source_term,target_term,freq,confidence,status,pos,domain,note';
-  const rows = entries.map(e => [e.src, e.tgt, e.freq, e.conf, e.status, e.pos || '', e.domain || '', e.note || ''].map(csvField).join(','));
+  const rows = entries.map(e => [e.src, e.tgt, e.freq, e.conf, e.status, e.pos || '', e.domain || '', e.note || '']
+    .map(guard).map(csvField).join(','));
   return '\uFEFF' + head + '\n' + rows.join('\n') + (rows.length ? '\n' : '');
 }
 

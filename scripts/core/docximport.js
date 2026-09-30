@@ -18,7 +18,11 @@ const CRC_TABLE = (function () {
 })();
 
 /* ---------- 迷你 ZIP 读取器（支持 STORE 与 DEFLATE） ---------- */
-function unzipEntry(buffer, wantedName) {
+/* 单文件解压展开上限（防 zip bomb：恶意 DOCX 的 deflate 炸弹解压可膨胀上千倍） */
+const MAX_ENTRY_BYTES = 64 * 1024 * 1024;
+
+function unzipEntry(buffer, wantedName, opts) {
+  const cap = (opts && opts.maxEntryBytes) || MAX_ENTRY_BYTES;
   const u8 = new Uint8Array(buffer);
   const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
   let eocd = -1;
@@ -46,11 +50,25 @@ function unzipEntry(buffer, wantedName) {
   const le = dv.getUint16(found.lho + 28, true);
   const dataStart = found.lho + 30 + ln + le;
   const data = u8.subarray(dataStart, dataStart + found.compSize);
-  if (found.method === 0) return data;
+  if (found.method === 0) {
+    if (data.length > cap) throw new Error('DOCX 内文件过大（' + wantedName + '）：超过 ' + humanCap(cap) + ' 安全上限');
+    return data;
+  }
   if (found.method === 8) {
-    return zlib.inflateRawSync(Buffer.from(data));
+    try {
+      return zlib.inflateRawSync(Buffer.from(data), { maxOutputLength: cap });
+    } catch (e) {
+      if (e.code === 'ERR_BUFFER_TOO_LARGE') {
+        throw new Error('DOCX 内文件解压后过大（' + wantedName + '）：超过 ' + humanCap(cap) + ' 安全上限（疑似 zip bomb）');
+      }
+      throw new Error('DOCX 解压失败（' + wantedName + '）：' + e.message);
+    }
   }
   throw new Error('不支持的压缩方式');
+}
+
+function humanCap(bytes) {
+  return bytes % (1024 * 1024) === 0 ? (bytes / 1024 / 1024) + 'MB' : Math.ceil(bytes / 1024) + 'KB';
 }
 
 /* ---------- DOCX → 纯文本（保留段落，段落间空行分隔以启用段落锚定） ---------- */
@@ -74,8 +92,8 @@ function paraText(pXml) {
   return out;
 }
 
-function readDocxText(buf) {
-  const xmlU8 = unzipEntry(buf, 'word/document.xml');
+function readDocxText(buf, opts) {
+  const xmlU8 = unzipEntry(buf, 'word/document.xml', opts);
   const xml = new TextDecoder('utf-8').decode(xmlU8);
   const lines = [];
   const pRe = /<w:p(?:\s[^>]*)?\/>|<w:p(?:\s[^>]*)?>[\s\S]*?<\/w:p>/g;
@@ -114,7 +132,7 @@ function readAnyPath(path) {
   return { text: decodeText(buf), type: 'txt' };
 }
 
-module.exports = { readAnyPath, readDocxText, decodeText, unzipEntry, xmlUnescape, crc32: (u8) => {
+module.exports = { readAnyPath, readDocxText, decodeText, unzipEntry, xmlUnescape, MAX_ENTRY_BYTES, crc32: (u8) => {
   let c = 0xFFFFFFFF;
   for (let i = 0; i < u8.length; i++) c = CRC_TABLE[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
   return (c ^ 0xFFFFFFFF) >>> 0;
