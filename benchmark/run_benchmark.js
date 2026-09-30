@@ -133,7 +133,7 @@ function main() {
   check('导出文件齐全 (tbx/csv/json/md/report)', ['terms.tbx', 'terms.csv', 'terms.json', 'terms.md', 'terms_report.json'].every(f => files.includes(f)));
 
   // TBX 结构校验：优先 python3 minidom，退化到标签平衡检查
-  let tbxOk = false, tbxDetail = '';
+  let tbxOk, tbxDetail;
   const tbx = fs.readFileSync(path.join(outDir, 'terms.tbx'), 'utf8');
   try {
     execSync('python3 -c "import sys,xml.dom.minidom; xml.dom.minidom.parse(sys.argv[1])" ' + path.join(outDir, 'terms.tbx'), { stdio: 'pipe' });

@@ -59,9 +59,9 @@ function unzipEntry(buffer, wantedName, opts) {
       return zlib.inflateRawSync(Buffer.from(data), { maxOutputLength: cap });
     } catch (e) {
       if (e.code === 'ERR_BUFFER_TOO_LARGE') {
-        throw new Error('DOCX 内文件解压后过大（' + wantedName + '）：超过 ' + humanCap(cap) + ' 安全上限（疑似 zip bomb）');
+        throw new Error('DOCX 内文件解压后过大（' + wantedName + '）：超过 ' + humanCap(cap) + ' 安全上限（疑似 zip bomb）', { cause: e });
       }
-      throw new Error('DOCX 解压失败（' + wantedName + '）：' + e.message);
+      throw new Error('DOCX 解压失败（' + wantedName + '）：' + e.message, { cause: e });
     }
   }
   throw new Error('不支持的压缩方式');

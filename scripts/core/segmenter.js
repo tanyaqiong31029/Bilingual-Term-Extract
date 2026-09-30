@@ -111,7 +111,7 @@ function segmentLine(line, opts) {
       let m = k;
       while (m < L && /\s/.test(line[m])) m++;
 
-      let boundary = false;
+      let boundary;
       if (m >= L) boundary = true;
       else if (m > k) boundary = isStartChar(line[m]);
       else boundary = isStartChar(line[k]);
