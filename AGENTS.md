@@ -8,7 +8,7 @@
 ## 常用命令
 ```bash
 npx eslint .                        # lint（0 问题）
-node tests/pipeline_test.js         # 104 项流水线回归，必须全过
+node tests/pipeline_test.js         # 流水线回归（断言总数以输出为准，当前 141+），必须全过
 node benchmark/run_benchmark.js     # 基准测试，必须全过
 uvx pre-commit run --all-files      # 提交前全量自检
 ```

@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.3.0 (2026-09-06)
+
+- **TMX 行内标签按元素语义清洗**（Trados/memoQ 互操作修复）：bpt/ept/it/ph 的内容
+  本身是转义后的原生标记（如 `<bpt>&lt;b&gt;</bpt>`），此前剥壳留内容会把 `<b>`
+  残留进术语正文——现连内容整体移除；hi 去壳留内容；新增真实 Trados Studio 风格
+  样例回归与截断/空 TMX 异常用例
+- **DOCX zip bomb 防护**：unzipEntry 增加单文件解压展开上限（默认 64MB，STORE 与
+  DEFLATE 双路约束，DEFLATE 走 inflate maxOutputLength）；坏 deflate 流报错而非崩溃
+- **CSV Excel 公式注入防护**（默认开启）：以 `= + - @ Tab CR` 开头的单元格加单引号
+  降级为纯文本，`{ excelSafe: false }` 关闭
+- **覆盖率基线**：`npm run coverage`（c8）；语句 97.4% / 分支 76.0%，基线表与
+  未测路径取舍说明见 tests/COVERAGE_BASELINE.md；补测 CLI --tmx/--pairs/--bilingual
+  入口、finalize/validate 异常退出码、滑窗长文对齐（1700 句 1-1 全对齐）
+- 开发工具升级（Dependabot）：eslint 10、lint-staged 17、globals 17、commitlint
+  config 21、checkout/setup-node v7、gitleaks-action v3；homepage 指向 SKILL.md 入门文档
+- 回归测试 115 → **141 项**
+
 ## 1.2.0 (2026-09-05)
 
 - 新增 `--bilingual`：单文件双语字幕自动拆分入口（same-cue 双语行 / 交替 cue /

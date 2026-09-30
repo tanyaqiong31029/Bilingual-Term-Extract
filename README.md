@@ -14,7 +14,7 @@
 - **统计译文**：句级 Dice 共现关联 + 连续段打分 + 两轮共识投票（不依赖任何外部模型/API）
 - **LLM 精筛**：由 agent 技能承载——判定真伪术语、确认/修正译文、标注词性/领域/置信度
 - **导出**：TBX（MultiTerm/memoQ 兼容）、CSV（Excel BOM）、JSON、Markdown，附审校报告
-- **质量保障**：115 项无头回归测试 + 金标准基准（EN↔ZH 各 16 术语对：召回 100%、统计译文 top-3 75%）
+- **质量保障**：141 项无头回归测试（覆盖率基线 97.4%，npm run coverage） + 金标准基准（EN↔ZH 各 16 术语对：召回 100%、统计译文 top-3 75%）
 
 ## 快速开始
 
@@ -70,7 +70,7 @@ node scripts/finalize.js --candidates output/demo_candidates.json \
 ## 开发与测试
 
 ```bash
-node tests/pipeline_test.js        # 无头回归（115 断言，~2s）
+node tests/pipeline_test.js        # 无头回归（141 断言，~3s）
 node benchmark/run_benchmark.js    # 金标准基准（--verbose 逐术语核对）
 ```
 
