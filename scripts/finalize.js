@@ -104,6 +104,19 @@ function main() {
     console.log('用法: node finalize.js --candidates candidates.json --decisions decisions.json --out output [--auto-conf 0.75] [--min-conf 0.6] [--include-review] [--name terms]');
     process.exit(has('help') ? 0 : 2);
   }
+  /* 数值参数校验：非数字 / 越出 [0,1] 时给出清晰错误，避免 NaN 让所有比较静默为 false */
+  const confFlag = (k, dflt) => {
+    if (!has(k)) return dflt;
+    const raw = get(k);
+    const v = raw === undefined || raw.startsWith('--') || raw.trim() === '' ? NaN : Number(raw);
+    if (!Number.isFinite(v) || v < 0 || v > 1) {
+      console.error('FATAL: --' + k + ' 需要 0–1 之间的数字，实际为: ' + (raw === undefined || raw.startsWith('--') ? '（缺少取值）' : raw));
+      process.exit(2);
+    }
+    return v;
+  };
+  const autoConf = confFlag('auto-conf', 0.75), minConf = confFlag('min-conf', 0.6);
+
   let candJson, decisions;
   try { candJson = JSON.parse(fs.readFileSync(candPath, 'utf8')); }
   catch (e) { console.error('FATAL: 无法读取 ' + candPath + '：' + e.message); process.exit(2); }
@@ -121,8 +134,8 @@ function main() {
 
   const name = get('name', 'terms');
   const { terms, report } = finalize(candJson, decisions, {
-    autoConf: +get('auto-conf', 0.75),
-    minConf: +get('min-conf', 0.6),
+    autoConf,
+    minConf,
     includeReview: has('include-review')
   });
   const files = writeOutputs(outDir, name, report.srcLang || 'src', report.tgtLang || 'tgt', terms, report);

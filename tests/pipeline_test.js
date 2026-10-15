@@ -236,6 +236,12 @@ eq('中文侧 bpt/ept 同样清除', tPairs[0].tgt, '边缘计算模型可扩展
 eq('ph 内容移除、hi 内容保留', tPairs[1].src, 'Run locally<not native>', tPairs[1].src);
 ok('术语正文无残留尖括号污染', !/[<>]/.test(tPairs[0].src) && !/[<>]/.test(tPairs[0].tgt.slice(0, 4)), tPairs);
 
+/* 回归：自闭合 <ph/> 不得被配对分支当成开标签，一路吞到下一个 </ph> 把正文删掉 */
+const phSelf = Tmx.segText('Click <ph x="1"/> edge computing gateway <ph x="2">&lt;br/&gt;</ph> now');
+ok('自闭合 ph 不吞正文', phSelf.includes('edge computing gateway'), phSelf);
+eq('自闭合 ph + 配对 ph 混排', phSelf, 'Click edge computing gateway now');
+eq('自闭合 ph 带空格 + 配对 bpt', Tmx.segText('A <ph x="1" /> B <bpt i="1">&lt;b&gt;</bpt>C<ept i="1">&lt;/b&gt;</ept>'), 'A B C');
+
 /* 异常 TMX：截断/无 seg/空文件不崩溃 */
 ok('截断 TMX 不崩溃', Tmx.extractPairs('<tmx><body><tu><tuv xml:lang="en"><seg>broken', 'en', 'zh').length === 0);
 ok('空 TMX 返回空', Tmx.extractPairs('', 'en', 'zh').length === 0);
@@ -294,6 +300,21 @@ eq('分块配对对数', s4.pairs.length, 2);
 eq('分块配对正确', s4.pairs[0].tgt, '第一句。');
 ok('src-lang 不匹配报错', (() => { try { Srt.splitBilingual(biSame, { srcLang: 'ja' }); return false; } catch (e) { return true; } })());
 eq('单文件双语统计', s1.stats.cues, 2);
+/* 回归：同 cue 模式下 a/b 按文字系统全局固定，不随单条 cue 内行数/行序翻转 */
+const biUneven = '1\n00:00:01,000 --> 00:00:02,000\nEdge computing is reshaping\ndistributed systems.\n边缘计算正在重塑分布式系统。\n\n' +
+  '2\n00:00:03,000 --> 00:00:04,000\nMachine learning models run on cloud servers.\n机器学习模型\n运行在云服务器上。\n\n' +
+  '3\n00:00:05,000 --> 00:00:06,000\n数据中心\nData centers.\n';
+const s5 = Srt.splitBilingual(biUneven, {});
+eq('同 cue 行数不均：对数', s5.pairs.length, 3);
+ok('同 cue 行数不均：源语始终英文（先出现的文字系统）',
+  s5.srcLang === 'en' && s5.pairs.every(p => /^[A-Za-z]/.test(p.src) && /[\u4e00-\u9fff]/.test(p.tgt)), s5.pairs);
+eq('同 cue 行数不均：cue2 中文多行合并到 tgt', s5.pairs[1].tgt, '机器学习模型 运行在云服务器上。');
+eq('同 cue 行序翻转：cue3 仍为 en→zh', [s5.pairs[2].src, s5.pairs[2].tgt], ['Data centers.', '数据中心']);
+const s6 = Srt.splitBilingual(biUneven, { srcLang: 'zh' });
+ok('同 cue 行数不均 + --src-lang zh：全部 zh→en',
+  s6.srcLang === 'zh-CN' && s6.pairs.every(p => /[\u4e00-\u9fff]/.test(p.src) && /^[A-Za-z]/.test(p.tgt)), s6.pairs);
+const s7 = Srt.splitBilingual(biBlock, {});
+ok('分块排布：未给 --src-lang 时以先出现的文字系统为源语', s7.srcLang === 'en' && s7.pairs[0].src === 'First line one.', s7);
 
 /* ---------- 端到端：alignDocs + 基准数据 ---------- */
 section('端到端（基准样例）');
@@ -436,6 +457,17 @@ ok('校验失败 → finalize 退出码 1', badExit(['scripts/finalize.js', '--c
   '--decisions', path.join(cliDir, 'bad.json'), '--out', cliDir], 1));
 ok('未知子命令 → 退出码 1', badExit(['scripts/term_extract.js', 'nope'], 1));
 ok('--help 正常退出', runCLI(['scripts/term_extract.js']).toString().includes('Bilingual-Term-Extract'));
+ok('candidates --help 打印帮助（退出码 0）', runCLI(['scripts/term_extract.js', 'candidates', '--help']).toString().includes('Bilingual-Term-Extract'));
+ok('--help 版本号与 package.json 一致', runCLI(['scripts/term_extract.js', '--help']).toString()
+  .includes('v' + require(path.join(ROOT, 'package.json')).version));
+ok('--min-freq 非数字 → 退出码 1', badExit(['scripts/term_extract.js', 'candidates', '--pairs', path.join(cliDir, 'pairs.json'),
+  '--min-freq', 'abc', '--out', cliDir], 1));
+ok('--min-conf 非数字 → finalize 退出码 2', badExit(['scripts/finalize.js', '--candidates', path.join(cliDir, 'pairc_candidates.json'),
+  '--decisions', path.join(cliDir, 'bad.json'), '--min-conf', 'abc', '--out', cliDir], 2));
+ok('--auto-conf 缺值 → finalize 退出码 2', badExit(['scripts/finalize.js', '--candidates', path.join(cliDir, 'pairc_candidates.json'),
+  '--decisions', path.join(cliDir, 'bad.json'), '--auto-conf'], 2));
+ok('候选 JSON 不含 Map/Set 内部字段', pairC.candidates.every(c => !['surfaces', 'spread', '_left', '_right'].some(k => k in c)),
+  Object.keys(pairC.candidates[0] || {}));
 try { fs.rmSync(cliDir, { recursive: true, force: true }); } catch (e) { /* 忽略 */ }
 
 /* 滑窗长文（alignLarge）：句数超 DP 上限 2.6M 自动分块，数字锚点保证 1-1 */
