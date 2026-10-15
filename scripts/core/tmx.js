@@ -8,8 +8,9 @@
  */
 const { xmlUnescape } = require('./docximport.js');
 
-/* 原生代码元素（含内容移除）：配对与自闭合两种形态 */
-const CODE_RE = /<(?:bpt|ept|it|ph)\b[^>]*>[\s\S]*?<\/(?:bpt|ept|it|ph)\s*>|<(?:bpt|ept|it|ph)\b[^>]*\/>/gi;
+/* 原生代码元素（含内容移除）：配对与自闭合两种形态。
+ * 配对分支的开标签用 (?<!\/)> 排除自闭合 <ph x="1"/>，否则它会一路吞到下一个 </ph>，把中间正文一起删掉。 */
+const CODE_RE = /<(?:bpt|ept|it|ph)\b[^>]*(?<!\/)>[\s\S]*?<\/(?:bpt|ept|it|ph)\s*>|<(?:bpt|ept|it|ph)\b[^>]*\/>/gi;
 
 function segText(segXml) {
   return xmlUnescape(String(segXml || '')

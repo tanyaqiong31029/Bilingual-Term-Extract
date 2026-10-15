@@ -97,7 +97,22 @@ function splitBilingual(text, opts) {
   let pairs = [];           // [{a, b}] 待定方向
   let skipped = 0;
 
+  /* 全局两种文字系统及其固定顺序：先按出现次数取前两种，再按在文件中首次出现的先后排定 a/b。
+   * a/b 一律按文字系统键分配（不按每条 cue 内的行数），保证源/目标方向在所有 cue 间一致；
+   * 最终谁是源语由下方 --src-lang 决定，未给时取 a（即文件中先出现的文字系统）。 */
+  const pickTwo = (count, first) => {
+    const top = Object.keys(count).sort((x, y) => count[y] - count[x] || first[x] - first[y]);
+    return { pair: top.slice(0, 2).sort((x, y) => first[x] - first[y]), rest: top.slice(2) };
+  };
+
   if (pattern === 'same-cue') {
+    const count = {}, first = {};
+    let pos = 0;
+    for (const p of perCue) {
+      for (const k of new Set(p.keys)) if (k) count[k] = (count[k] || 0) + 1;
+      for (const k of p.keys) if (k && first[k] === undefined) first[k] = pos++;
+    }
+    const { pair: [kA, kB] } = pickTwo(count, first);
     for (const p of perCue) {
       const groups = {};
       for (let i = 0; i < p.lines.length; i++) {
@@ -105,24 +120,29 @@ function splitBilingual(text, opts) {
         if (!k) { skipped++; continue; }
         (groups[k] = groups[k] || []).push(p.lines[i]);
       }
-      const ks = Object.keys(groups).sort((x, y) => groups[y].length - groups[x].length);
-      if (ks.length < 2) { skipped++; continue; }
-      pairs.push({ a: groups[ks[0]].join(' '), b: groups[ks[1]].join(' ') });
-      skipped += ks.slice(2).reduce((s, k) => s + groups[k].length, 0);
+      if (!kB || !groups[kA] || !groups[kB]) {
+        skipped += Object.keys(groups).reduce((s, k) => s + groups[k].length, 0);
+        continue;
+      }
+      pairs.push({ a: groups[kA].join(' '), b: groups[kB].join(' ') });
+      skipped += Object.keys(groups).filter(k => k !== kA && k !== kB).reduce((s, k) => s + groups[k].length, 0);
     }
   } else {
-    const buckets = {};
+    const buckets = {}, first = {};
     for (const p of perCue) {
       const k = p.keys.find(k => k);
       if (!k) { skipped++; continue; }
+      if (first[k] === undefined) first[k] = Object.keys(first).length;
       (buckets[k] = buckets[k] || []).push(p.lines.join(' '));
     }
-    const ks = Object.keys(buckets).sort((x, y) => buckets[y].length - buckets[x].length);
+    const count = {};
+    for (const k of Object.keys(buckets)) count[k] = buckets[k].length;
+    const { pair: ks, rest } = pickTwo(count, first);
     if (ks.length < 2) throw new Error('字幕中只检测到一种文字系统（' + ks[0] + '），无法双语拆分');
     const n = Math.min(buckets[ks[0]].length, buckets[ks[1]].length);
     for (let i = 0; i < n; i++) pairs.push({ a: buckets[ks[0]][i], b: buckets[ks[1]][i] });
     skipped += buckets[ks[0]].length - n + buckets[ks[1]].length - n +
-      ks.slice(2).reduce((s, k) => s + buckets[k].length, 0);
+      rest.reduce((s, k) => s + buckets[k].length, 0);
   }
   if (!pairs.length) throw new Error('未能从字幕中拆出任何双语对（skipped=' + skipped + '）');
 
@@ -137,7 +157,7 @@ function splitBilingual(text, opts) {
     if (aIs === bIs) throw new Error('--src-lang ' + opts.srcLang + ' 与字幕两侧语言（' + langA + ' / ' + langB + '）不匹配');
     srcIsA = aIs;
   } else {
-    srcIsA = true; // 默认先出现的语言为源语，调用方负责告警
+    srcIsA = true; // 默认：文件中先出现的文字系统为源语（全局固定，不随 cue 变化），调用方负责告警
   }
   const out = pairs.map(p => ({ src: srcIsA ? p.a : p.b, tgt: srcIsA ? p.b : p.a, conf: 1.0, origin: 'srt-bilingual' }));
   return {

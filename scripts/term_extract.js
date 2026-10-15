@@ -25,6 +25,10 @@ const Srt = require(path.join(SRC, 'core/srt.js'));
 const Cand = require(path.join(SRC, 'core/candidates.js'));
 const Vote = require(path.join(SRC, 'core/vote.js'));
 const { toMD } = require(path.join(SRC, 'core/exporters.js'));
+/* 版本号以 package.json 为准；技能目录若只拷贝了 scripts/（无 package.json）则回退到内置值 */
+const VERSION = (() => {
+  try { return require(path.join(SRC, '..', 'package.json')).version; } catch (e) { return '1.3.0'; }
+})();
 
 function parseArgs(argv) {
   const o = { _: [] };
@@ -32,7 +36,7 @@ function parseArgs(argv) {
     const a = argv[i];
     if (a.startsWith('--')) {
       const key = a.slice(2);
-      if (key === 'include-review' || key === 'bilingual') { o[key] = true; continue; }
+      if (key === 'include-review' || key === 'bilingual' || key === 'help') { o[key] = true; continue; }
       o[key] = argv[i + 1] !== undefined && !argv[i + 1].startsWith('--') ? argv[i + 1] : true;
       if (o[key] !== true) i++;
     } else o._.push(a);
@@ -78,7 +82,37 @@ function alignDocs(srcText, tgtText, srcLang, tgtLang) {
   return { pairs, nA: A.length, nB: B.length, dropped };
 }
 
+/* 数值参数校验：缺省取 dflt；非数字 / 越界直接报清晰错误，避免 NaN 静默流入统计阶段 */
+function numFlag(o, key, dflt, lim) {
+  lim = lim || {};
+  if (o[key] === undefined) return dflt;
+  const v = o[key] === true || String(o[key]).trim() === '' ? NaN : Number(o[key]);
+  if (!Number.isFinite(v)) throw new Error('--' + key + ' 需要数字，实际为: ' + (o[key] === true ? '（缺少取值）' : o[key]));
+  if (lim.int && !Number.isInteger(v)) throw new Error('--' + key + ' 需要整数，实际为: ' + o[key]);
+  if (lim.min !== undefined && v < lim.min) throw new Error('--' + key + ' 不能小于 ' + lim.min + '，实际为: ' + o[key]);
+  if (lim.max !== undefined && v > lim.max) throw new Error('--' + key + ' 不能大于 ' + lim.max + '，实际为: ' + o[key]);
+  return v;
+}
+
+/* 候选 JSON 序列化：surfaces/spread/_left/_right 为 Map/Set 内部统计结构，JSON 化后只剩 {}，下游（validate/finalize）不读取 */
+const INTERNAL_FIELDS = ['surfaces', 'spread', '_left', '_right'];
+function serializableCandidate(c) {
+  const out = {};
+  for (const k of Object.keys(c)) if (!INTERNAL_FIELDS.includes(k)) out[k] = c[k];
+  return out;
+}
+
+function printHelp() {
+  console.log('Bilingual-Term-Extract v' + VERSION);
+  console.log('子命令:\n  candidates   统计阶段：双语文档 → 候选术语 + 统计译文');
+  console.log('  --bilingual  单文件双语字幕拆分（与 --src 搭配，.srt/.vtt）');
+  console.log('  --min-freq N / --top N   候选最低频次（默认 2）/ 输出上限（默认 300），须为正整数');
+  console.log('后续 LLM 精筛与定稿: scripts/validate.js + scripts/finalize.js（见 SKILL.md）');
+}
+
 function cmdCandidates(o) {
+  // 先校验数值参数，读文件 / 对齐之前就报错
+  const minFreq = numFlag(o, 'min-freq', 2, { min: 1, int: true }), topN = numFlag(o, 'top', 300, { min: 1, int: true });
   let pairs, srcLang, tgtLang;
   if (o.bilingual) {
     if (!o.src) throw new Error('--bilingual 需要 --src 指向单个双语字幕文件（.srt/.vtt）');
@@ -93,7 +127,10 @@ function cmdCandidates(o) {
     pairs = split.pairs;
     console.log('双语字幕拆分: ' + split.pattern + ' 模式，' + split.stats.cues + ' 条 cue → ' +
       split.stats.pairs + ' 对（跳过 ' + split.stats.skipped + ' 行）');
-    if (!o['src-lang']) console.warn('WARN: 未指定 --src-lang，默认以先出现的语言（' + srcLang + '）为源语');
+    if (!o['src-lang']) {
+      console.warn('WARN: 未指定 --src-lang，默认以字幕文件中最先出现的文字系统（' + srcLang + '）为源语，' +
+        '全部 cue 统一按此方向（不随单条 cue 内行序/行数变化）；方向不对请加 --src-lang 指定');
+    }
   } else if (o.tmx) {
     srcLang = o['src-lang']; tgtLang = o['tgt-lang'];
     if (!srcLang || !tgtLang) throw new Error('--tmx 模式必须显式给出 --src-lang 与 --tgt-lang');
@@ -121,7 +158,6 @@ function cmdCandidates(o) {
     if (pairs.length < 5) console.warn('WARN: 有效句对仅 ' + pairs.length + ' 个，统计召回与译文质量有限——LLM 精筛请格外依赖上下文例句');
   }
 
-  const minFreq = +(o['min-freq'] || 2), topN = +(o.top || 300);
   console.log('语言对: ' + srcLang + ' → ' + tgtLang + '；候选参数 minFreq=' + minFreq + ' topN=' + topN);
 
   const { candidates, stats } = Cand.extractCandidates(pairs, { minFreq, topN });
@@ -141,7 +177,7 @@ function cmdCandidates(o) {
     note: 'candidates 为统计阶段产物（高召回）。请按 SKILL.md 完成 LLM 精筛，写 decisions.json 后运行 finalize.js。'
   };
   const candPath = path.join(outDir, name + '_candidates.json');
-  fs.writeFileSync(candPath, JSON.stringify({ app: 'bilingual-term-extract', version: 1, meta, candidates }, null, 2) + '\n', 'utf8');
+  fs.writeFileSync(candPath, JSON.stringify({ app: 'bilingual-term-extract', version: 1, meta, candidates: candidates.map(serializableCandidate) }, null, 2) + '\n', 'utf8');
 
   // 预览表（供人工快速浏览，前 30 条）
   const prevEntries = candidates.slice(0, 30).map(c => ({
@@ -162,14 +198,8 @@ function main() {
   const o = parseArgs(process.argv.slice(2));
   const cmd = o._[0];
   try {
+    if (!cmd || o.help || o.h || cmd === 'help') { printHelp(); return; }
     if (cmd === 'candidates') return cmdCandidates(o);
-    if (!cmd || o.help) {
-      console.log('Bilingual-Term-Extract v1.2.0');
-      console.log('子命令:\n  candidates   统计阶段：双语文档 → 候选术语 + 统计译文');
-      console.log('  --bilingual  单文件双语字幕拆分（与 --src 搭配，.srt/.vtt）');
-      console.log('后续 LLM 精筛与定稿: scripts/validate.js + scripts/finalize.js（见 SKILL.md）');
-      return;
-    }
     throw new Error('未知子命令: ' + cmd);
   } catch (e) {
     console.error('FATAL: ' + e.message);
@@ -179,4 +209,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { alignDocs, cmdCandidates, parseArgs, ensurePairLangs };
+module.exports = { alignDocs, cmdCandidates, parseArgs, ensurePairLangs, numFlag, serializableCandidate };
